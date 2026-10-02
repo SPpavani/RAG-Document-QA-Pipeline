@@ -14,6 +14,7 @@ question ──► retrieve top-k chunks ──► prompt + LLM ──► answer
 | Step | File | Details |
 |---|---|---|
 | Ingest | `ingest.py` | Loads a PDF with `PyPDFLoader`, splits it (1000 chars, 200 overlap), embeds it and saves it to a persistent Chroma DB |
+| Retrieval check | `query.py` | Runs a similarity search (top 3) against the stored DB and prints the matching passages. Edit the question inside the file |
 | Retrieve + generate | `rag_pipeline.py` | `RAGPipeline` class: loads the Chroma store, retrieves the top `k` chunks (default 3) and answers with a grounded prompt |
 | Grounding | `rag_pipeline.py` | The prompt tells the model to say "I don't know" instead of inventing an answer |
 | Output | `rag_pipeline.py` | Returns the answer, the source snippets and the source count |
@@ -31,11 +32,11 @@ export OPENAI_API_KEY="your-key"
 # 1. put your PDF in data/raw/pdfs/ and point ingest.py at it
 python ingest.py
 
-# 2. ask questions
+# 2. check that retrieval works (edit the question in query.py)
 python query.py
 ```
 
-## Example
+## Full question answering
 
 ```python
 from rag_pipeline import RAGPipeline
