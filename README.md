@@ -1,59 +1,122 @@
 # RAG Document Q&A Pipeline
 
-Ask questions about your own PDFs and get answers **with the source passages they came from**.
-Built with LangChain, ChromaDB, HuggingFace embeddings and an OpenAI chat model.
+[![CI](https://github.com/SPpavani/RAG-Document-QA-Pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/SPpavani/RAG-Document-QA-Pipeline/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11-blue)
 
-## How it works
+Ask questions about your own PDFs and get answers **with citations (file + page)**, served through a **FastAPI** service and backed by a **measurable retrieval evaluation**.
+
+Built with LangChain, ChromaDB, HuggingFace embeddings, an OpenAI chat model, FastAPI and Docker.
+
+## Architecture
 
 ```
-PDF ──► split into chunks ──► embed (MiniLM) ──► Chroma vector store
-                                                        │
-question ──► retrieve top-k chunks ──► prompt + LLM ──► answer + sources
+PDFs ──► split (1000 / 200 overlap) ──► embed (MiniLM) ──► Chroma vector store
+                                                                 │
+POST /query ──► validate ──► retrieve top-k ──► grounded prompt ──► LLM (temp 0)
+                                                                 │
+                               { answer, sources[file, page, snippet], latency_ms }
 ```
 
-| Step | File | Details |
-|---|---|---|
-| Ingest | `ingest.py` | Loads a PDF with `PyPDFLoader`, splits it (1000 chars, 200 overlap), embeds it and saves it to a persistent Chroma DB |
-| Retrieval check | `query.py` | Runs a similarity search (top 3) against the stored DB and prints the matching passages. Edit the question inside the file |
-| Retrieve + generate | `rag_pipeline.py` | `RAGPipeline` class: loads the Chroma store, retrieves the top `k` chunks (default 3) and answers with a grounded prompt |
-| Grounding | `rag_pipeline.py` | The prompt tells the model to say "I don't know" instead of inventing an answer |
-| Output | `rag_pipeline.py` | Returns the answer, the source snippets and the source count |
+## What's in the repo
 
-**Models:** `sentence-transformers/all-MiniLM-L6-v2` for embeddings; `gpt-3.5-turbo` by default for generation (configurable).
+| File | Purpose |
+|---|---|
+| `ingest.py` | Ingests **all PDFs in a folder** into Chroma. Rebuilds the index each run, so no duplicate chunks |
+| `rag_pipeline.py` | `RAGPipeline`: retrieval + grounded generation. Temperature 0, "I don't know" fallback, citations with file and page |
+| `api.py` | FastAPI app: `GET /health`, `POST /query` with input validation and clear error codes (422 / 503 / 500) |
+| `evaluate.py` + `eval/questions.json` | Retrieval evaluation: hit-rate@k, MRR, latency p50/p95. Needs no LLM or API key |
+| `gen_pdfs.py` | Generates a synthetic sample PDF so anyone can run the project end to end |
+| `tests/` | Pytest suite for the API and evaluation metrics (no ML models needed) |
+| `Dockerfile` | Container image for the API |
+| `.github/workflows/ci.yml` | Runs the tests on every push and pull request |
 
 ## Quick start
 
 ```bash
 git clone https://github.com/SPpavani/RAG-Document-QA-Pipeline.git
 cd RAG-Document-QA-Pipeline
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-export OPENAI_API_KEY="your-key"
 
-# 1. put your PDF in data/raw/pdfs/ and point ingest.py at it
-python ingest.py
+cp .env.example .env          # then add your OPENAI_API_KEY
 
-# 2. check that retrieval works (edit the question in query.py)
-python query.py
+python gen_pdfs.py            # sample PDF (or put your own PDFs in data/raw/pdfs/)
+python ingest.py              # build the vector store
+python evaluate.py            # measure retrieval quality
+uvicorn api:app --reload      # start the API, docs at http://localhost:8000/docs
 ```
 
-## Full question answering
+## API
 
-```python
-from rag_pipeline import RAGPipeline
-
-rag = RAGPipeline(vectorstore_path="data/vectorstore/chroma_db", openai_api_key="...")
-result = rag.query("What is the company's AI strategy?")
-print(result["answer"])
-print(result["sources"])
+```bash
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "How much will Acme Corp invest in AI in 2024?"}'
 ```
 
-## Status and roadmap
+Response shape:
 
-Working prototype with a single-PDF ingestion path.
+```json
+{
+  "answer": "...",
+  "sources": [{"content": "...", "source": "ai_strategy_2024.pdf", "page": 1}],
+  "source_count": 3,
+  "latency_ms": 812.4
+}
+```
 
-- [ ] Ingest a whole folder of PDFs
-- [ ] Add a FastAPI endpoint and a small web UI
-- [ ] Add an evaluation set (retrieval hit rate, answer faithfulness, latency)
-- [ ] Add a reranker and compare against the current baseline
-- [ ] Add unit tests and a GitHub Actions workflow
-- [ ] Move the source files into a `src/` package
+| Status | Meaning |
+|---|---|
+| 200 | Answer returned |
+| 422 | Question missing, shorter than 3 or longer than 500 characters |
+| 503 | Vector store not found, so run `python ingest.py` |
+| 500 | Pipeline error (details in server logs) |
+
+## Docker
+
+```bash
+docker build -t rag-api .
+docker run -p 8000:8000 --env-file .env -v "$(pwd)/data:/app/data" rag-api
+```
+
+## Evaluation
+
+`python evaluate.py` runs the questions in `eval/questions.json` against the vector store and reports:
+
+- **hit-rate@k**: share of questions where a retrieved chunk contains the expected facts
+- **MRR**: how high the first relevant chunk ranks
+- **latency p50 / p95**: retrieval speed
+
+A chunk counts as relevant when it contains all the expected keywords for the question. This is a cheap, deterministic proxy for retrieval quality. It does not judge the final answer, which is why answer-level evaluation is on the roadmap.
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+## Design decisions
+
+- **Temperature 0**: factual Q&A should be repeatable, not creative.
+- **Grounded prompt**: the model must say "I don't know" when the context lacks the answer.
+- **Citations with file and page**: users can verify every answer.
+- **Local embeddings (MiniLM)**: no embedding API cost, runs offline.
+- **Lazy imports in the API**: tests run in CI in seconds without downloading ML models.
+
+## Known limitations
+
+- PDF text only (no OCR for scanned documents, tables are not parsed specially)
+- Single-turn questions (no conversation memory)
+- Dense retrieval only (no keyword/BM25 component)
+- No authentication or rate limiting on the API
+
+## Roadmap
+
+- [ ] Hybrid search (BM25 + vectors) with a cross-encoder reranker, compared against this baseline
+- [ ] Answer-level evaluation (faithfulness, answer relevance) with RAGAS
+- [ ] Streaming responses and conversation memory
+- [ ] PII redaction and prompt-injection guardrails
+- [ ] Tracing and cost tracking (Langfuse / OpenTelemetry)
+- [ ] API-key auth and rate limiting
+- [ ] Deploy to Azure Container Apps or Hugging Face Spaces
