@@ -1,6 +1,20 @@
+# --- Core RAG ---
 langchain==0.2.6
+langchain-community>=0.2.6,<0.3
+langchain-openai>=0.1.8,<0.2
+langchain-chroma>=0.1.2,<0.2
+langchain-huggingface>=0.0.3,<0.1
+langchain-text-splitters>=0.2.0,<0.3
 chromadb==0.5.3
 sentence-transformers==2.7.0
-fpdf2==2.7.8
 pypdf==4.2.0
 python-dotenv==1.0.1
+numpy<2
+
+# --- Sample data generator ---
+fpdf2==2.7.8
+
+# --- API ---
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.0

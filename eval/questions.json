@@ -1,0 +1,10 @@
+[
+  {"question": "How much will Acme Corp invest in AI in 2024?", "expected_keywords": ["12 million"]},
+  {"question": "What are the three pillars of the AI strategy?", "expected_keywords": ["three pillars"]},
+  {"question": "What reduction in ticket handling time is targeted?", "expected_keywords": ["30 percent"]},
+  {"question": "Where does the support copilot pilot start?", "expected_keywords": ["Hyderabad"]},
+  {"question": "What forecast error is targeted by the end of 2024?", "expected_keywords": ["11 percent"]},
+  {"question": "Who chairs the AI Governance Board?", "expected_keywords": ["Chief Data Officer"]},
+  {"question": "How many engineers will the AI team have in 2024?", "expected_keywords": ["20 engineers"]},
+  {"question": "When is the company-wide knowledge search launched?", "expected_keywords": ["Q4 2024"]}
+]
