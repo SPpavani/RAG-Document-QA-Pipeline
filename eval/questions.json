@@ -6,5 +6,11 @@
   {"question": "What forecast error is targeted by the end of 2024?", "expected_keywords": ["11 percent"]},
   {"question": "Who chairs the AI Governance Board?", "expected_keywords": ["Chief Data Officer"]},
   {"question": "How many engineers will the AI team have in 2024?", "expected_keywords": ["20 engineers"]},
-  {"question": "When is the company-wide knowledge search launched?", "expected_keywords": ["Q4 2024"]}
+  {"question": "When is the company-wide knowledge search launched?", "expected_keywords": ["Q4 2024"]},
+  {"question": "What happens in Q3 2024?", "expected_keywords": ["forecasting models in production"]},
+  {"question": "What is planned for Q1 2024?", "expected_keywords": ["governance framework approved"]},
+  {"question": "Which roles does the company want to hire first?", "expected_keywords": ["AI product manager"]},
+  {"question": "How often does the AI Governance Board meet?", "expected_keywords": ["every month"]},
+  {"question": "How much historical sales data feeds the forecasting models?", "expected_keywords": ["three years"]},
+  {"question": "Is customer data sent to external models without anonymisation?", "expected_keywords": ["never sent to external models"]}
 ]

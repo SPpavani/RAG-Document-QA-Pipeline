@@ -1,4 +1,12 @@
-from evaluate import first_hit_rank, hit_rate, mrr, normalize, percentile
+from evaluate import (
+    first_hit_rank,
+    format_table,
+    hit_rate,
+    mrr,
+    normalize,
+    percentile,
+    summarize,
+)
 
 
 def test_normalize_collapses_whitespace_and_case():
@@ -35,3 +43,10 @@ def test_percentile():
     assert percentile(values, 50) == 3
     assert percentile(values, 95) == 5
     assert percentile([], 50) == 0.0
+
+
+def test_summarize_and_format_table():
+    summary = summarize([1, 2, None], [10.0, 20.0, 30.0], k=3)
+    assert summary["hit_rate@3"] == 0.667
+    table = format_table({"dense": summary, "hybrid": summary}, k=3)
+    assert "dense" in table and "hybrid" in table and "hit_rate@3" in table

@@ -67,3 +67,23 @@ def test_missing_vectorstore_returns_503(monkeypatch):
     r = client.post("/query", json={"question": "anything here"})
     assert r.status_code == 503
     assert "ingest.py" in r.json()["detail"]
+
+
+def test_api_key_required_when_configured(monkeypatch):
+    monkeypatch.setenv("API_KEY", "secret")
+    _use(FakePipeline())
+    payload = {"question": "How much is the budget?"}
+    assert client.post("/query", json=payload).status_code == 401
+    assert client.post("/query", json=payload, headers={"X-API-Key": "wrong"}).status_code == 401
+    assert client.post("/query", json=payload, headers={"X-API-Key": "secret"}).status_code == 200
+
+
+def test_api_key_not_required_when_unset():
+    _use(FakePipeline())
+    r = client.post("/query", json={"question": "How much is the budget?"})
+    assert r.status_code == 200
+
+
+def test_health_is_public_even_with_api_key(monkeypatch):
+    monkeypatch.setenv("API_KEY", "secret")
+    assert client.get("/health").status_code == 200
