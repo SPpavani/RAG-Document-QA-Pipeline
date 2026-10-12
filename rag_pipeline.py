@@ -11,6 +11,7 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import ChatOpenAI
 
+from config import Config
 from retrieval import HybridRetriever
 
 logger = logging.getLogger(__name__)
@@ -42,13 +43,13 @@ class RAGPipeline:
 
     def __init__(
         self,
-        vectorstore_path: str,
-        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-        llm_model: str = "gpt-3.5-turbo",
-        search_k: int = 3,
+        vectorstore_path: str = str(Config.VECTORSTORE_DIR),
+        embedding_model: str = Config.EMBEDDING_MODEL,
+        llm_model: str = Config.LLM_MODEL,
+        search_k: int = Config.SEARCH_K,
         openai_api_key: Optional[str] = None,
         temperature: float = 0.0,
-        retrieval_mode: str = "hybrid",
+        retrieval_mode: str = Config.RETRIEVAL_MODE,
     ):
         """
         Args:
@@ -144,6 +145,6 @@ class RAGPipeline:
 def setup_logging():
     """Configure logging for the RAG pipeline."""
     logging.basicConfig(
-        level=logging.INFO,
+        level=getattr(logging, Config.LOG_LEVEL.upper(), logging.INFO),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )

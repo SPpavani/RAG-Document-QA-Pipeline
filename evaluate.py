@@ -17,6 +17,8 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from config import Config
+
 
 def normalize(text: str) -> str:
     return " ".join(text.lower().split())
@@ -79,8 +81,8 @@ def format_table(results: Dict[str, Dict], k: int) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--questions", default="eval/questions.json")
-    parser.add_argument("--vectorstore", default="data/vectorstore/chroma_db")
-    parser.add_argument("--k", type=int, default=3)
+    parser.add_argument("--vectorstore", default=str(Config.VECTORSTORE_DIR))
+    parser.add_argument("--k", type=int, default=Config.SEARCH_K)
     parser.add_argument("--modes", nargs="+", default=["dense", "hybrid", "rerank"])
     args = parser.parse_args()
 
@@ -91,7 +93,7 @@ def main() -> None:
     from retrieval import HybridRetriever
 
     questions = json.loads(Path(args.questions).read_text(encoding="utf-8"))
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    embeddings = HuggingFaceEmbeddings(model_name=Config.EMBEDDING_MODEL)
     db = Chroma(persist_directory=args.vectorstore, embedding_function=embeddings)
 
     summaries: Dict[str, Dict] = {}

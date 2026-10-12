@@ -3,7 +3,7 @@
 Run:  uvicorn api:app --reload
 Docs: http://localhost:8000/docs
 
-Environment variables:
+Settings come from config.py / environment variables:
     OPENAI_API_KEY    key for the chat model
     LLM_MODEL         chat model name (default gpt-3.5-turbo)
     RETRIEVAL_MODE    dense | hybrid | rerank (default hybrid)
@@ -20,15 +20,10 @@ from typing import List, Optional
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
-try:  # optional: load variables from a local .env file
-    from dotenv import load_dotenv
-
-    load_dotenv()
-except ImportError:
-    pass
+from config import Config  # also loads a local .env file
 
 logger = logging.getLogger("rag_api")
-VECTORSTORE_PATH = os.getenv("VECTORSTORE_PATH", "data/vectorstore/chroma_db")
+VECTORSTORE_PATH = str(Config.VECTORSTORE_DIR)
 
 
 class QueryRequest(BaseModel):
@@ -50,7 +45,7 @@ class QueryResponse(BaseModel):
 
 app = FastAPI(
     title="RAG Document Q&A API",
-    version="1.1.0",
+    version="1.2.0",
     description="Ask questions about ingested PDFs and get answers with citations.",
 )
 
@@ -66,9 +61,10 @@ def get_pipeline():
 
     return RAGPipeline(
         vectorstore_path=VECTORSTORE_PATH,
-        llm_model=os.getenv("LLM_MODEL", "gpt-3.5-turbo"),
-        openai_api_key=os.getenv("OPENAI_API_KEY"),
-        retrieval_mode=os.getenv("RETRIEVAL_MODE", "hybrid"),
+        llm_model=Config.LLM_MODEL,
+        openai_api_key=Config.OPENAI_API_KEY or None,
+        retrieval_mode=Config.RETRIEVAL_MODE,
+        search_k=Config.SEARCH_K,
     )
 
 
