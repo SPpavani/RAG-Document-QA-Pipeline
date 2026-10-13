@@ -1,9 +1,9 @@
 # RAG Document Q&A Pipeline
 
 [![CI](https://github.com/SPpavani/RAG-Document-QA-Pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/SPpavani/RAG-Document-QA-Pipeline/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.11-blue)
+![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)
 
-Ask questions about your own PDFs and get answers **with citations (file + page)**. Retrieval uses **hybrid search (BM25 + vectors) with an optional cross-encoder reranker**, is served through a **FastAPI** service, and is **evaluated side by side** against a plain vector-search baseline.
+Ask questions about your own PDFs and get answers **with citations (file + page)**. Retrieval uses **hybrid search (BM25 + vectors) with an optional cross-encoder reranker**, is served through a **FastAPI** service or a command-line tool, and is **evaluated side by side** against a plain vector-search baseline.
 
 Built with LangChain, ChromaDB, HuggingFace embeddings, an OpenAI chat model, FastAPI and Docker.
 
@@ -19,7 +19,7 @@ PDFs ──► split (1000 / 200 overlap) ──► embed (MiniLM) ──► Chr
                                          │
                        (optional) cross-encoder rerank
                                          │
-POST /query ──► validate ──► top-k chunks ──► grounded prompt ──► LLM (temp 0)
+question ──► top-k chunks ──► grounded prompt ──► LLM (temperature 0)
                                          │
                    { answer, sources[file, page, snippet], latency_ms }
 ```
@@ -36,15 +36,18 @@ POST /query ──► validate ──► top-k chunks ──► grounded prompt 
 
 | File | Purpose |
 |---|---|
+| `config.py` | Single source of truth: paths, models, chunking and retrieval settings. Every value can be overridden by an environment variable or `.env` |
+| `pdf_loader.py` | Loads PDFs page by page and splits them into chunks (page metadata is kept) |
+| `ingest.py` | Ingests **all PDFs in a folder** into Chroma. Rebuilds the index each run, so no duplicate chunks |
 | `retrieval.py` | BM25 (written from scratch), Reciprocal Rank Fusion and `HybridRetriever` |
 | `rag_pipeline.py` | `RAGPipeline`: retrieval + grounded generation. Temperature 0, "I don't know" fallback, citations with file and page |
+| `query.py` | Command-line tool: one-shot or interactive questions, with `--retrieval-only` (no LLM, no API key) |
 | `api.py` | FastAPI app: `GET /health`, `POST /query`, optional API-key auth, clear error codes |
-| `ingest.py` | Ingests **all PDFs in a folder** into Chroma. Rebuilds the index each run, so no duplicate chunks |
 | `evaluate.py` + `eval/questions.json` | Compares dense / hybrid / rerank on hit-rate@k, MRR and latency. No LLM or API key needed |
 | `gen_pdfs.py` | Generates a synthetic sample PDF so anyone can run the project end to end |
-| `tests/` | Pytest suite covering the API, auth, retrieval logic and metrics (no ML models needed) |
-| `Dockerfile`, `Makefile` | Container image and shortcut commands |
-| `.github/workflows/ci.yml` | Syntax check + tests on every push and pull request |
+| `tests/` | Pytest suite covering the API, auth, config, retrieval logic and metrics (no ML models needed) |
+| `Dockerfile`, `Makefile` | Container image (with health check) and shortcut commands |
+| `.github/workflows/ci.yml` | Syntax check + tests on Python 3.10, 3.11 and 3.12 for every push and pull request |
 
 ## Quick start
 
@@ -58,11 +61,36 @@ cp .env.example .env          # then add your OPENAI_API_KEY
 
 python gen_pdfs.py            # sample PDF (or put your own PDFs in data/raw/pdfs/)
 python ingest.py              # build the vector store
+
+python query.py "How much will Acme Corp invest in AI in 2024?"   # answer + sources
 python evaluate.py            # compare dense vs hybrid vs rerank
 uvicorn api:app --reload      # start the API, docs at http://localhost:8000/docs
 ```
 
+Command-line options:
+
+```bash
+python query.py "your question" --retrieval-only        # show retrieved chunks, no LLM
+python query.py "your question" --mode rerank --k 5     # choose retrieval mode and top-k
+python query.py                                         # interactive mode
+```
+
 Shortcuts: `make install`, `make sample`, `make ingest`, `make eval`, `make serve`, `make test`.
+
+## Configuration
+
+Set these in `.env` or as environment variables (defaults in `config.py`):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `OPENAI_API_KEY` | none | Key for the chat model |
+| `LLM_MODEL` | `gpt-3.5-turbo` | Chat model name |
+| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Embedding model |
+| `RETRIEVAL_MODE` | `hybrid` | `dense`, `hybrid` or `rerank` |
+| `CHUNK_SIZE` / `CHUNK_OVERLAP` | `1000` / `200` | Chunking (re-run `ingest.py` after changing) |
+| `SEARCH_K` | `3` | Chunks passed to the LLM |
+| `VECTORSTORE_PATH` | `data/vectorstore/chroma_db` | Where the index is stored |
+| `API_KEY` | none | If set, the API requires it in the `X-API-Key` header |
 
 ## API
 
@@ -73,7 +101,7 @@ curl -X POST http://localhost:8000/query \
   -d '{"question": "How much will Acme Corp invest in AI in 2024?"}'
 ```
 
-(`X-API-Key` is only required if you set `API_KEY` in `.env`.)
+(`X-API-Key` is only required if you set `API_KEY`.)
 
 Response shape:
 
@@ -100,6 +128,8 @@ Response shape:
 docker build -t rag-api .
 docker run -p 8000:8000 --env-file .env -v "$(pwd)/data:/app/data" rag-api
 ```
+
+The image includes a health check that calls `GET /health`.
 
 ## Evaluation
 
@@ -129,6 +159,7 @@ pytest -q
 - **BM25 from scratch**: about 30 lines, fully unit-tested, no extra dependency.
 - **Temperature 0 and a grounded prompt**: factual Q&A should be repeatable and say "I don't know" when the context lacks the answer.
 - **Citations with file and page**: users can verify every answer.
+- **One config module**: no duplicated constants, no hardcoded machine-specific paths.
 - **Local embeddings (MiniLM)**: no embedding API cost, runs offline.
 - **Lazy imports**: tests run in CI in seconds without downloading ML models.
 
@@ -144,6 +175,7 @@ pytest -q
 
 - [x] Hybrid search (BM25 + vectors) and cross-encoder reranker, compared by `evaluate.py`
 - [x] API-key authentication
+- [x] Command-line tool and central configuration
 - [ ] Answer-level evaluation (faithfulness, answer relevance) with RAGAS
 - [ ] Streaming responses and conversation memory
 - [ ] PII redaction and prompt-injection guardrails
