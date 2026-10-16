@@ -69,3 +69,23 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+#S***********************************************************************
+optionaalcode
+
+def main() -> None:
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()  # Add initial page once
+
+    for title, body in SECTIONS:
+        pdf.set_font("Helvetica", "B", 14)
+        pdf.multi_cell(0, 8, title)
+        pdf.ln(2)
+        pdf.set_font("Helvetica", size=11)
+        pdf.multi_cell(0, 6, body)
+        pdf.ln(6)  # Space between sections
+
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    pdf.output(str(OUT))
+    print(f"Created {OUT}")
