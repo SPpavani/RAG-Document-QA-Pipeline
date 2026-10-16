@@ -71,7 +71,7 @@ if __name__ == "__main__":
     main()
 
 #S***********************************************************************
-optionaalcode
+# optionaalcode:S
 
 def main() -> None:
     pdf = FPDF()
